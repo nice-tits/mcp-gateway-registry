@@ -5,9 +5,10 @@ Complete installation instructions for the MCP Gateway & Registry on various pla
 ## Prerequisites
 
 - **Node.js 16+**: Required for building the React frontend
-- **Docker & Docker Compose**: Container runtime and orchestration
-- **Amazon Cognito**: Identity provider for authentication (see [Cognito Setup Guide](cognito.md))
+- **Docker & Docker Compose**: Container runtime and orchestration  
 - **SSL Certificate**: Optional for HTTPS deployment in production
+
+> **No external authentication services required!** The system uses local authentication.
 
 ## Quick Start (5 Minutes)
 
@@ -16,23 +17,26 @@ Complete installation instructions for the MCP Gateway & Registry on various pla
 git clone https://github.com/agentic-community/mcp-gateway-registry.git
 cd mcp-gateway-registry
 
-# 2. Configure environment
+# 2. Configure environment (optional - defaults work)
 cp .env.example .env
-# Edit .env with your credentials
+# Edit .env to customize admin credentials if desired
 
-# 3. Generate authentication credentials
-./credentials-provider/generate_creds.sh
-
-# 4. Install prerequisites
+# 3. Install prerequisites
 curl -LsSf https://astral.sh/uv/install.sh | sh
 sudo apt-get update && sudo apt-get install -y docker.io docker-compose
 
-# 5. Deploy
+# 4. Deploy
 ./build_and_run.sh
 
-# 6. Access registry
+# 5. Access registry
 open http://localhost:7860
 ```
+
+**Default Login:**
+- Username: `admin`
+- Password: `admin`
+
+**⚠️ Change default credentials in production!**
 
 ## Installation on Amazon EC2
 
@@ -65,13 +69,12 @@ open http://localhost:7860
    ```
 
    **Required Configuration:**
-   - `ADMIN_PASSWORD`: Secure admin password
-   - `COGNITO_USER_POOL_ID`: AWS Cognito User Pool ID
-   - `COGNITO_CLIENT_ID`: Cognito App Client ID
-   - `COGNITO_CLIENT_SECRET`: Cognito App Client Secret
-   - `AWS_REGION`: AWS region for Cognito
+   - `ADMIN_PASSWORD`: Secure admin password  
+   - `SECRET_KEY`: Secure session encryption key
+   - `AUTH_SERVER_URL`: Internal auth server URL
+   - `AUTH_SERVER_EXTERNAL_URL`: External auth server URL
 
-3. **Generate Authentication Credentials**
+3. **Customize Local Authentication (Optional)**
    ```bash
    # Configure OAuth credentials
    cp credentials-provider/oauth/.env.example credentials-provider/oauth/.env
@@ -150,7 +153,7 @@ graph TB
     end
     
     subgraph "AWS Services"
-        COG[Amazon Cognito]
+        LocalAuth[Local Authentication<br/>users.yml]
         CW[CloudWatch]
         ECR[Amazon ECR]
     end
@@ -233,10 +236,11 @@ docker-compose logs --tail=50
 
 **Authentication failures:**
 ```bash
-# Verify Cognito configuration
-aws cognito-idp describe-user-pool --user-pool-id YOUR_POOL_ID
+# Test local authentication
+curl -u admin:admin http://localhost:8888/validate
 
-# Test credential generation
+# Check user configuration
+cat auth_server/users.yml
 cd credentials-provider && ./generate_creds.sh --verbose
 ```
 
