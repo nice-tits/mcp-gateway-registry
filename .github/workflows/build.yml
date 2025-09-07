@@ -1,0 +1,147 @@
+name: 🐳 Build & Test Docker
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-frontend:
+    name: "🎨 Build Frontend"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: 📦 Install frontend dependencies
+      working-directory: frontend
+      run: npm ci
+
+    - name: 🏗️ Build frontend
+      working-directory: frontend
+      run: npm run build
+
+    - name: 📤 Upload frontend build
+      uses: actions/upload-artifact@v3
+      with:
+        name: frontend-build
+        path: frontend/dist/
+        retention-days: 1
+
+  build-docker:
+    name: "🐳 Build Docker Images"
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 📤 Download frontend build
+      uses: actions/download-artifact@v3
+      with:
+        name: frontend-build
+        path: frontend/dist/
+
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🏗️ Build Registry Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.registry
+        push: false
+        tags: mcp-registry:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: 🏗️ Build Auth Server Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.auth
+        push: false
+        tags: mcp-auth:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: 🧪 Test Docker images can start
+      run: |
+        echo "🐳 Testing Registry image..."
+        docker run --rm -d --name test-registry \
+          -e CONTAINER_LOG_DIR=/tmp/logs \
+          -e ADMIN_PASSWORD=test123 \
+          -p 7860:7860 \
+          mcp-registry:test &
+        sleep 10
+        
+        # Test if registry is responding (basic health check)
+        if curl -f http://localhost:7860/health; then
+          echo "✅ Registry image working"
+        else
+          echo "❌ Registry image failed to start"
+          docker logs test-registry
+          exit 1
+        fi
+        
+        docker stop test-registry
+
+    - name: 🧹 Cleanup test containers
+      if: always()
+      run: |
+        docker rm -f test-registry || true
+
+  lint-dockerfile:
+    name: "🔍 Lint Dockerfiles"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐳 Lint Dockerfiles
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: docker/Dockerfile.registry
+        failure-threshold: warning
+
+    - name: 🐳 Lint Auth Dockerfile
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: docker/Dockerfile.auth
+        failure-threshold: warning
+
+  summary:
+    name: "📋 Build Summary"
+    runs-on: ubuntu-latest
+    needs: [build-frontend, build-docker, lint-dockerfile]
+    if: always()
+
+    steps:
+    - name: 📋 Build Results Summary
+      run: |
+        echo "## 🐳 Build Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Frontend Build | ${{ needs.build-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Docker Build | ${{ needs.build-docker.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Dockerfile Lint | ${{ needs.lint-dockerfile.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ needs.build-frontend.result }}" == "success" && "${{ needs.build-docker.result }}" == "success" && "${{ needs.lint-dockerfile.result }}" == "success" ]]; then
+          echo "✅ All builds passed! 🎉" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Some builds failed. Please check the logs." >> $GITHUB_STEP_SUMMARY
+        fi
