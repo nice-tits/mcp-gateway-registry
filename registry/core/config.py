@@ -17,11 +17,9 @@ class Settings(BaseSettings):
     # Auth settings
     secret_key: str = ""
     admin_user: str = "admin"
-    admin_password: str = "password"
+    admin_password: str = "admin"
     session_cookie_name: str = "mcp_gateway_session"
     session_max_age_seconds: int = 60 * 60 * 8  # 8 hours
-    auth_server_url: str = "http://localhost:8888"
-    auth_server_external_url: str = "http://localhost:8888"  # External URL for OAuth redirects
     
     # Embeddings settings
     embeddings_model_name: str = "all-MiniLM-L6-v2"

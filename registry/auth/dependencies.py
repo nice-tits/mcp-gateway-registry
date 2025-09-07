@@ -1,8 +1,6 @@
 import secrets
-from typing import Annotated, List, Dict, Any, Optional
+from typing import Annotated, Dict, Any
 import logging
-import yaml
-from pathlib import Path
 
 from fastapi import Depends, HTTPException, status, Cookie
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
@@ -97,11 +95,9 @@ def get_user_session_data(
                 detail="Invalid session data"
             )
         
-        # Set defaults for traditional auth users
-        if data.get('auth_method') != 'oauth2':
-            # Traditional users get admin privileges
-            data.setdefault('groups', ['mcp-registry-admin'])
-            data.setdefault('scopes', ['mcp-servers-unrestricted/read', 'mcp-servers-unrestricted/execute'])
+        # Set defaults for simplified authentication - all users get admin privileges
+        data.setdefault('groups', ['mcp-registry-admin'])
+        data.setdefault('scopes', ['mcp-servers-unrestricted/read', 'mcp-servers-unrestricted/execute'])
         
         logger.debug(f"Session data extracted for user: {data.get('username')}")
         return data
@@ -377,45 +373,29 @@ def enhanced_auth(
 ) -> Dict[str, Any]:
     """
     Enhanced authentication dependency that returns full user context.
-    Returns username, groups, scopes, and permission flags.
+    Returns username with admin privileges for simplified authentication.
     """
     session_data = get_user_session_data(session)
     
     username = session_data['username']
-    groups = session_data.get('groups', [])
+    groups = ['mcp-registry-admin']  # All authenticated users are admins in simplified mode
     auth_method = session_data.get('auth_method', 'traditional')
     
     logger.info(f"Enhanced auth debug for {username}: groups={groups}, auth_method={auth_method}")
     
-    # Map groups to scopes for OAuth2 users
-    if auth_method == 'oauth2':
-        scopes = map_cognito_groups_to_scopes(groups)
-        logger.info(f"OAuth2 user {username} with groups {groups} mapped to scopes: {scopes}")
-        # If OAuth2 user has no groups, they should get minimal permissions, not admin
-        if not groups:
-            logger.warning(f"OAuth2 user {username} has no groups! This user may not have proper group assignments in Cognito.")
-    else:
-        # Traditional users dynamically map to admin
-        if not groups:
-            groups = ['mcp-registry-admin']
-        # Map traditional admin groups to scopes dynamically
-        scopes = map_cognito_groups_to_scopes(groups)
-        if not scopes:
-            # Fallback for traditional users if no mapping exists
-            scopes = ['mcp-registry-admin', 'mcp-servers-unrestricted/read', 'mcp-servers-unrestricted/execute']
-        logger.info(f"Traditional user {username} with groups {groups} mapped to scopes: {scopes}")
+    # Simplified scopes for admin users
+    scopes = ['mcp-registry-admin', 'mcp-servers-unrestricted/read', 'mcp-servers-unrestricted/execute']
     
-    # Get UI permissions
-    ui_permissions = get_ui_permissions_for_user(scopes)
+    # UI permissions for admins (can do everything)
+    ui_permissions = {
+        'list_service': ['all'],
+        'toggle_service': ['all'],
+        'register_service': ['all']
+    }
     
-    # Get accessible servers (from server scopes)
-    accessible_servers = get_user_accessible_servers(scopes)
-    
-    # Get accessible services (from UI permissions)
-    accessible_services = get_accessible_services_for_user(ui_permissions)
-    
-    # Check modification permissions
-    can_modify = user_can_modify_servers(groups, scopes)
+    # Admin users can access all servers and services
+    accessible_servers = ['all']  
+    accessible_services = ['all']
     
     user_context = {
         'username': username,
@@ -426,8 +406,8 @@ def enhanced_auth(
         'accessible_servers': accessible_servers,
         'accessible_services': accessible_services,
         'ui_permissions': ui_permissions,
-        'can_modify_servers': can_modify,
-        'is_admin': 'mcp-registry-admin' in groups
+        'can_modify_servers': True,
+        'is_admin': True
     }
     
     logger.debug(f"Enhanced auth context for {username}: {user_context}")

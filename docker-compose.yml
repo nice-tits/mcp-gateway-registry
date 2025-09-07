@@ -23,7 +23,6 @@ services:
       - /opt/mcp-gateway/models:/app/registry/models
       - /opt/ssl:/etc/ssl
       - /var/log/mcp-gateway:/app/logs
-      - /opt/mcp-gateway/auth_server/scopes.yml:/app/auth_server/scopes.yml
 
     restart: unless-stopped
 
@@ -62,7 +61,6 @@ services:
     volumes:
       - /opt/mcp-gateway/servers:/app/registry/servers
       - /opt/mcp-gateway/models:/app/registry/models
-      - /opt/mcp-gateway/auth_server/scopes.yml:/app/auth_server/scopes.yml
     ports:
       - "8003:8003"
     depends_on:
