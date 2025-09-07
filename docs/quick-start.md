@@ -6,15 +6,16 @@ Get the MCP Gateway & Registry running in 5 minutes with this streamlined setup 
 
 By the end of this guide, you'll have:
 - ✅ MCP Gateway & Registry running locally
-- ✅ Authentication configured with Amazon Cognito  
+- ✅ Local authentication system configured with default admin credentials
 - ✅ AI coding assistant (VS Code) connected to the gateway
 - ✅ Access to curated enterprise MCP tools
 
 ## Prerequisites
 
-- **Amazon Cognito Setup**: You'll need Cognito credentials (see [minimal setup](#amazon-cognito-minimal-setup))
 - **Docker**: Docker and Docker Compose installed
 - **Basic Command Line**: Comfort with terminal/command prompt
+
+> **No external dependencies required!** The system uses local authentication.
 
 ## Step 1: Clone and Configure
 
@@ -23,55 +24,35 @@ By the end of this guide, you'll have:
 git clone https://github.com/agentic-community/mcp-gateway-registry.git
 cd mcp-gateway-registry
 
-# Copy and edit environment configuration
+# Copy and edit environment configuration (optional)
 cp .env.example .env
 ```
 
-**Edit `.env` with your values:**
+**Edit `.env` with your values (optional - defaults work for local development):**
 ```bash
-# Required - Replace with your actual values
-COGNITO_USER_POOL_ID=us-east-1_XXXXXXXXX
-COGNITO_CLIENT_ID=your_cognito_client_id
-COGNITO_CLIENT_SECRET=your_cognito_client_secret
-AWS_REGION=us-east-1
-ADMIN_PASSWORD=your-secure-password
-
-# Optional - Will be auto-generated if not provided
+# Optional customizations - defaults work for local setup
+ADMIN_USER=admin                    # Default: admin
+ADMIN_PASSWORD=your-secure-password # Default: admin
+AUTH_SERVER_URL=http://auth-server:8888
 SECRET_KEY=optional-secret-key-for-sessions
-```
 
-## Step 2: Generate Authentication
-
-```bash
-# Configure OAuth credentials for client access
-cp credentials-provider/oauth/.env.example credentials-provider/oauth/.env
-
-# Edit with minimal configuration
-nano credentials-provider/oauth/.env
-```
-
-**Add to `credentials-provider/oauth/.env`:**
-```bash
-# Ingress authentication (required for client access)
+# AWS Region (only needed if using other AWS services)
 AWS_REGION=us-east-1
-INGRESS_OAUTH_USER_POOL_ID=us-east-1_XXXXXXXXX
-INGRESS_OAUTH_CLIENT_ID=your_cognito_client_id
-INGRESS_OAUTH_CLIENT_SECRET=your_cognito_client_secret
 ```
 
-```bash
-# Generate authentication tokens and client configurations
-./credentials-provider/generate_creds.sh
-```
+**Default credentials work immediately:**
+- Username: `admin`
+- Password: `admin`  
+- API Key: `mcp-api-key-example-12345abcdef`
 
-## Step 3: Install and Deploy
+## Step 2: Install and Deploy
 
 ```bash
-# Install Python environment
+# Install Python environment (if needed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 
-# Install Docker (Ubuntu/Debian)
+# Install Docker (Ubuntu/Debian - skip if already installed)
 sudo apt-get update
 sudo apt-get install -y docker.io docker-compose
 sudo usermod -a -G docker $USER
@@ -83,7 +64,9 @@ newgrp docker
 
 ⏱️ **This takes about 2-3 minutes** - Docker will build images and start services.
 
-## Step 4: Verify Installation
+> **No additional setup required!** The system uses local authentication with default credentials.
+
+## Step 3: Verify Installation
 
 ```bash
 # Check all services are running
@@ -104,20 +87,57 @@ open http://localhost:7860
 # Or visit: http://localhost:7860
 ```
 
-**Login options:**
-- **Username**: `admin` (or your `ADMIN_USER` value)
-- **Password**: Your `ADMIN_PASSWORD` value
+**Login with default credentials:**
+- **Username**: `admin`
+- **Password**: `admin`
 
-## Step 5: Connect AI Coding Assistant
+**⚠️ Change these credentials in production!**
+
+## Step 4: Connect AI Coding Assistant
 
 ### VS Code Setup (Recommended for first test)
 
-```bash
-# Copy generated VS Code configuration
-cp .oauth-tokens/vscode-mcp.json ~/.vscode/settings.json
+The system generates ready-to-use configurations. For manual setup:
 
-# If you have existing settings, merge instead:
-cat .oauth-tokens/vscode-mcp.json >> ~/.vscode/settings.json
+```bash
+# Create MCP configuration for VS Code
+mkdir -p ~/.vscode
+cat > ~/.vscode/mcp.json << EOF
+{
+  "mcp": {
+    "servers": {
+      "mcp_gateway": {
+        "url": "http://localhost:7860/mcpgw/mcp",
+        "transport": "sse",
+        "headers": {
+          "Authorization": "Basic $(echo -n 'admin:admin' | base64)"
+        }
+      }
+    }
+  }
+}
+EOF
+```
+
+### Alternative: API Key Authentication
+
+```bash
+# Using API key instead of basic auth
+cat > ~/.vscode/mcp.json << EOF
+{
+  "mcp": {
+    "servers": {
+      "mcp_gateway": {
+        "url": "http://localhost:7860/mcpgw/mcp", 
+        "transport": "sse",
+        "headers": {
+          "Authorization": "Bearer mcp-api-key-example-12345abcdef"
+        }
+      }
+    }
+  }
+}
+EOF
 ```
 
 ### Test the Connection
@@ -130,14 +150,32 @@ cat .oauth-tokens/vscode-mcp.json >> ~/.vscode/settings.json
 ### Alternative: Roo Code Setup
 
 ```bash
-# For Roo Code users
-cp .oauth-tokens/mcp.json ~/.vscode/mcp-settings.json
+# For Roo Code users - using API key authentication
+mkdir -p ~/.roocode
+cat > ~/.roocode/mcp_servers.json << EOF
+{
+  "mcp_gateway": {
+    "url": "http://localhost:7860/mcpgw/mcp",
+    "transport": "sse", 
+    "headers": {
+      "Authorization": "Bearer mcp-api-key-example-12345abcdef"
+    }
+  }
+}
+EOF
 ```
 
-## Step 6: Test Everything Works
+## Step 5: Test Everything Works
 
 ```bash
-# Test gateway connectivity
+# Test gateway connectivity with basic auth
+curl -u admin:admin http://localhost:7860/health
+
+# Test with API key
+curl -H "Authorization: Bearer mcp-api-key-example-12345abcdef" \
+  http://localhost:8888/validate
+
+# Test MCP protocol connectivity
 cd tests
 ./mcp_cmds.sh ping
 
@@ -168,54 +206,69 @@ You now have a fully functional MCP Gateway & Registry! Here are your next steps
 - 📊 **[Monitoring & Analytics](monitoring.md)** - Usage tracking and health monitoring
 - 🏢 **[Production Deployment](production-deployment.md)** - High availability and scaling
 
-## Amazon Cognito Minimal Setup
+## Local Authentication Setup
 
-If you don't have Amazon Cognito configured yet, here's the minimal setup:
+The system uses local file-based authentication - no external services required!
 
-### 1. Create User Pool
+### Default Configuration
 
+The system comes with default credentials that work immediately:
+
+**Web Interface:**
+- Username: `admin`
+- Password: `admin`
+
+**API Access:**
+- API Key: `mcp-api-key-example-12345abcdef`
+
+### Customizing Authentication
+
+#### Change Admin Password
+
+1. **Generate Password Hash**:
 ```bash
-# Using AWS CLI
-aws cognito-idp create-user-pool \
-  --pool-name mcp-gateway-users \
-  --policies PasswordPolicy='{MinimumLength=8,RequireUppercase=false,RequireLowercase=false,RequireNumbers=false,RequireSymbols=false}' \
-  --region us-east-1
+python -c "import bcrypt; print(bcrypt.hashpw(b'your_new_password', bcrypt.gensalt()).decode())"
 ```
 
-### 2. Create User Pool Client
-
+2. **Update users.yml**:
 ```bash
-# Create app client
-aws cognito-idp create-user-pool-client \
-  --user-pool-id us-east-1_XXXXXXXXX \
-  --client-name mcp-gateway-client \
-  --generate-secret \
-  --explicit-auth-flows ADMIN_NO_SRP_AUTH CLIENT_CREDENTIALS \
-  --supported-identity-providers COGNITO \
-  --region us-east-1
+# Edit auth_server/users.yml
+users:
+  admin:
+    password_hash: "$2b$12$your_generated_hash"
+    groups:
+      - mcp-registry-admin
+    enabled: true
 ```
 
-### 3. Create Test User
+#### Add New Users
 
 ```bash
-# Create admin user
-aws cognito-idp admin-create-user \
-  --user-pool-id us-east-1_XXXXXXXXX \
-  --username admin \
-  --temporary-password TempPass123! \
-  --message-action SUPPRESS \
-  --region us-east-1
-
-# Set permanent password
-aws cognito-idp admin-set-user-password \
-  --user-pool-id us-east-1_XXXXXXXXX \
-  --username admin \
-  --password YourSecurePassword123! \
-  --permanent \
-  --region us-east-1
+# Add to auth_server/users.yml
+users:
+  newuser:
+    password_hash: "$2b$12$generated_hash" 
+    groups:
+      - mcp-registry-user
+    enabled: true
+    description: "New user account"
 ```
 
-**For complete Cognito setup:** See [Amazon Cognito Setup Guide](cognito.md)
+#### Add Service Accounts
+
+```bash
+# Add to auth_server/users.yml  
+users:
+  api_service:
+    password_hash: "$2b$12$generated_hash"
+    api_key: "mcp-api-key-service-unique-id"
+    groups:
+      - mcp-registry-service
+    enabled: true
+    is_service_account: true
+```
+
+**For complete authentication setup:** See [Authentication Guide](auth.md)
 
 ## Troubleshooting Quick Fixes
 
@@ -231,11 +284,15 @@ sudo netstat -tlnp | grep -E ':(80|443|7860|8080)'
 
 ### Authentication Errors
 ```bash
-# Verify Cognito configuration
-aws cognito-idp describe-user-pool --user-pool-id YOUR_POOL_ID
+# Test local authentication
+curl -u admin:admin http://localhost:8888/validate
 
-# Regenerate credentials
-./credentials-provider/generate_creds.sh
+# Test API key authentication  
+curl -H "Authorization: Bearer mcp-api-key-example-12345abcdef" \
+  http://localhost:8888/validate
+
+# Check user configuration
+cat auth_server/users.yml
 ```
 
 ### Can't Access Web Interface
@@ -250,11 +307,14 @@ docker-compose logs registry
 ### AI Assistant Not Connecting
 ```bash
 # Verify configuration file exists
-ls -la ~/.vscode/settings.json
+ls -la ~/.vscode/mcp.json
 
 # Test authentication manually
-curl -H "Authorization: Bearer $(cat .oauth-tokens/ingress.json | jq -r .access_token)" \
-  http://localhost/mcpgw/sse
+curl -u admin:admin http://localhost:7860/mcpgw/mcp
+
+# Test with API key
+curl -H "Authorization: Bearer mcp-api-key-example-12345abcdef" \
+  http://localhost:7860/mcpgw/mcp
 ```
 
 ## Getting Help

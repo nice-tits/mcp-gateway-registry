@@ -132,8 +132,8 @@ flowchart TB
         end
     end
     
-    %% Identity Provider
-    IdP[Identity Provider<br/>Amazon Cognito]
+    %% Identity Management
+    LocalAuth[Local Authentication<br/>users.yml]
     
     subgraph EKS_Cluster["Amazon EKS/EC2 Cluster"]
         MCP_EKS1["MCP Server 3"]
@@ -170,8 +170,8 @@ flowchart TB
     
     %% Auth flow connections
     RP -->|Auth validation| AuthServer
-    AuthServer -.->|Validate credentials| IdP
-    Registry -.->|User authentication| IdP
+    AuthServer -.->|Validate credentials| LocalAuth
+    Registry -.->|User authentication| LocalAuth
     RP -->|Tool discovery| RegistryMCP
     RP -->|Web UI access| Registry
     
@@ -210,7 +210,7 @@ flowchart TB
     class EC2_Gateway,NGINX gateway
     class RP nginx
     class AuthServer,Registry,RegistryMCP gateway
-    class IdP apiGw
+    class LocalAuth apiGw
     class MCP_Local1,MCP_Local2 mcpServer
     class EKS_Cluster,MCP_EKS1,MCP_EKS2 eks
     class API_GW apiGw
@@ -229,9 +229,10 @@ flowchart TB
 ## Key Advantages
 
 ### **Enterprise-Grade Security**
-- OAuth 2.0/3.0 compliance with IdP integration
-- Fine-grained access control at tool and method level  
-- Zero-trust network architecture
+- Multiple authentication methods (Basic, API Key, JWT)
+- Local user management with bcrypt password hashing
+- Self-signed JWT tokens with configurable scopes
+- Zero external dependencies
 - Complete audit trails and comprehensive analytics for compliance
 
 ### **AI Agent & Developer Experience**
@@ -244,13 +245,14 @@ flowchart TB
 - High availability with multi-AZ deployment
 - Container-native (Docker/Kubernetes)
 - Real-time health monitoring and alerting
-- Dual authentication supporting both human and machine authentication
+- Multiple authentication methods supporting both human and machine access
+- Self-contained with no external service dependencies
 
 ---
 
 ## Quick Start
 
-> **Important:** Before proceeding, ensure you have satisfied all [prerequisites](docs/installation.md#prerequisites) including Docker, AWS account setup, and Amazon Cognito configuration.
+> **Important:** Before proceeding, ensure you have Docker and Docker Compose installed.
 
 Get up and running in 5 minutes with Docker Compose:
 
@@ -259,12 +261,9 @@ Get up and running in 5 minutes with Docker Compose:
 git clone https://github.com/agentic-community/mcp-gateway-registry.git
 cd mcp-gateway-registry
 
-# Configure environment
+# Configure environment (optional - defaults work for local development)
 cp .env.example .env
-# Edit .env with your Cognito credentials
-
-# Generate authentication credentials
-./credentials-provider/generate_creds.sh
+# Edit .env if you want to change default credentials
 
 # Deploy with Docker Compose
 ./build_and_run.sh
@@ -272,6 +271,13 @@ cp .env.example .env
 # Access the registry
 open http://localhost:7860
 ```
+
+**Default Login:**
+- **Username:** `admin`
+- **Password:** `admin`
+- **API Key:** `mcp-api-key-example-12345abcdef`
+
+**⚠️ Change these credentials in production!**
 
 **That's it!** Your enterprise MCP gateway is now running.
 
@@ -301,20 +307,22 @@ Transform how both autonomous AI agents and development teams access enterprise 
 
 ### Authentication & Authorization
 
-**Multiple Identity Modes:**
-- **Machine-to-Machine (M2M)** - For autonomous AI agents and automated systems
-- **Three-Legged OAuth (3LO)** - For external service integration (Atlassian, Google, GitHub)
-- **Session-Based** - For human developers using AI coding assistants and web interface
+**Multiple Authentication Methods:**
+- **HTTP Basic Authentication** - Simple username/password authentication
+- **API Key Authentication** - For automated systems and machine-to-machine access
+- **Self-Signed JWT Tokens** - Generated tokens with configurable scopes and expiration
+- **Session-Based Authentication** - Web interface with secure session cookies
 
-**Supported Identity Providers:**
-- Amazon Cognito (Primary)
-- Any OAuth 2.0 compatible provider
+**No External Dependencies:**
+- Local user management with bcrypt password hashing
+- Self-contained authentication system
+- No cloud provider requirements
 
 **Fine-Grained Permissions:**
 - Tool-level access control
 - Method-level restrictions  
-- Team-based permissions
-- Temporary access grants
+- Group-based permissions
+- Configurable scope assignments
 
 ### Production Deployment
 
@@ -332,10 +340,10 @@ Transform how both autonomous AI agents and development teams access enterprise 
 
 ## What's New
 
+- **Local Authentication System** - No AWS dependencies, file-based user management with multiple auth methods
 - **Amazon Bedrock AgentCore Integration** - Direct access to AWS services through managed MCP endpoints
-- **Three-Legged OAuth (3LO) Support** - External service integration (Atlassian, Google, GitHub)
-- **JWT Token Vending Service** - Self-service token generation for automation
-- **Automated Token Refresh Service** - Background token refresh to maintain continuous authentication
+- **Enhanced JWT Token System** - Self-signed tokens with configurable scopes and expiration
+- **Multiple Authentication Methods** - Basic auth, API keys, JWT tokens, and session cookies
 - **Modern React Frontend** - Complete UI overhaul with TypeScript and real-time updates
 - **Dynamic Tool Discovery** - AI agents autonomously find and execute specialized tools
 - **Fine-Grained Access Control** - Granular permissions for servers, methods, and individual tools
