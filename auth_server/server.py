@@ -29,6 +29,17 @@ from string import Template
 # Import our local user management
 from local_user_manager import user_manager, authenticate_user, authenticate_api_key
 
+# Initialize SECRET_KEY and signer for session management early
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    # Generate a secure random key (32 bytes = 256 bits of entropy)
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning("No SECRET_KEY environment variable found. Using a randomly generated key. "
+                   "While this is more secure than a hardcoded default, it will change on restart. "
+                   "Set a permanent SECRET_KEY environment variable for production.")
+
+signer = URLSafeTimedSerializer(SECRET_KEY)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,  # Set the log level to INFO
@@ -1099,16 +1110,7 @@ def substitute_env_vars(config):
 # Global OAuth2 configuration
 OAUTH2_CONFIG = load_oauth2_config()
 
-# Initialize SECRET_KEY and signer for session management
-SECRET_KEY = os.environ.get('SECRET_KEY')
-if not SECRET_KEY:
-    # Generate a secure random key (32 bytes = 256 bits of entropy)
-    SECRET_KEY = secrets.token_hex(32)
-    logger.warning("No SECRET_KEY environment variable found. Using a randomly generated key. "
-                   "While this is more secure than a hardcoded default, it will change on restart. "
-                   "Set a permanent SECRET_KEY environment variable for production.")
-
-signer = URLSafeTimedSerializer(SECRET_KEY)
+# OAuth2 functionality is preserved but Cognito is removed
 
 def get_enabled_providers():
     """Get list of enabled OAuth2 providers"""
