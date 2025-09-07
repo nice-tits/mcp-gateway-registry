@@ -1,5 +1,5 @@
 """
-This server provides a collection of fake tools with interesting names that take different types of parameters.
+This server provides a collection of demo tools with interesting names that take different types of parameters.
 These tools are stubbed out and return mock responses for demonstration purposes.
 """
 
@@ -46,7 +46,7 @@ def secure_sample(population, k):
 
 class Constants(BaseModel):
     # Using ClassVar to define class-level constants
-    DESCRIPTION: ClassVar[str] = "Real Server Fake Tools MCP Server"
+    DESCRIPTION: ClassVar[str] = "Demo Tools MCP Server"
     DEFAULT_MCP_TRANSPORT: ClassVar[str] = "streamable-http"
     DEFAULT_MCP_SERVER_LISTEN_PORT: ClassVar[str] = "8001"
     REQUEST_TIMEOUT: ClassVar[float] = 15.0
@@ -88,7 +88,7 @@ logger.info(f"Parsed arguments - port: {args.port}, transport: {args.transport}"
 logger.info(f"Environment variables - MCP_TRANSPORT: {os.environ.get('MCP_TRANSPORT', 'NOT SET')}, MCP_SERVER_LISTEN_PORT: {os.environ.get('MCP_SERVER_LISTEN_PORT', 'NOT SET')}")
 
 # Initialize FastMCP server
-mcp = FastMCP("RealServerFakeTools")
+mcp = FastMCP("DemoTools")
 
 
 # Define some Pydantic models for complex parameter types
@@ -114,7 +114,7 @@ class AnalysisOptions(BaseModel):
 @mcp.prompt()
 def system_prompt_for_agent(task_description: str) -> str:
     """
-    Generates a system prompt for an AI Agent that wants to use the real_server_fake_tools MCP server.
+    Generates a system prompt for an AI Agent that wants to use the demo_tools MCP server.
 
     Args:
         task_description (str): Description of the task the agent wants to accomplish.
@@ -124,12 +124,12 @@ def system_prompt_for_agent(task_description: str) -> str:
     """
 
     system_prompt = f"""
-You are an expert AI agent that wants to use the real_server_fake_tools MCP server. 
-This server provides a collection of fake tools with interesting names that take different types of parameters.
+You are an expert AI agent that wants to use the demo_tools MCP server. 
+This server provides a collection of demo tools with interesting names that take different types of parameters.
 
 The task you need to accomplish is: {task_description}
 
-You can use any of the available tools provided by the real_server_fake_tools MCP server to accomplish this task.
+You can use any of the available tools provided by the demo_tools MCP server to accomplish this task.
 """
     return system_prompt
 
@@ -473,11 +473,11 @@ def synthetic_data_generator(
 
 @mcp.resource("config://app")
 def get_config() -> str:
-    """Static configuration data for the fake tools server"""
+    """Static configuration data for the demo tools server"""
     config = {
-        "server_name": "real_server_fake_tools",
+        "server_name": "demo_tools",
         "version": "0.1.0",
-        "description": "A collection of fake tools with interesting names",
+        "description": "A collection of demo tools with interesting names",
         "max_concurrent_requests": 10,
         "default_timeout_seconds": 30,
         "supported_features": [
@@ -495,7 +495,7 @@ def get_config() -> str:
 
 @mcp.resource("docs://tools")
 def get_tools_documentation() -> str:
-    """Documentation for the fake tools"""
+    """Documentation for the demo tools"""
     docs = {
         "quantum_flux_analyzer": {
             "description": "Analyzes quantum flux patterns with configurable energy levels and stabilization.",
@@ -601,7 +601,7 @@ def get_tools_documentation() -> str:
 def main():
     # Log transport and endpoint information
     endpoint = "/mcp"  # streamable-http always uses /mcp endpoint
-    logger.info(f"Starting RealServerFakeTools server on port {args.port} with transport {args.transport}")
+    logger.info(f"Starting DemoTools server on port {args.port} with transport {args.transport}")
     logger.info(f"Server will be available at: http://localhost:{args.port}{endpoint}")
     
     # Run the server with the specified transport from command line args
