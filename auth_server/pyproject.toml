@@ -8,7 +8,7 @@ packages = ["auth_server"]
 [project]
 name = "auth_server"
 version = "0.1.0"
-description = "Authentication server for validating JWT tokens against Amazon Cognito"
+description = "Authentication server with local user management and JWT token validation"
 requires-python = ">=3.9"
 dependencies = [
     "fastapi>=0.115.0",
@@ -17,12 +17,12 @@ dependencies = [
     "requests>=2.28.0",
     "python-jose>=3.3.0",
     "python-dotenv>=1.0.0",
-    "boto3>=1.28.0",
     "pyjwt>=2.6.0",
     "cryptography>=40.0.0",
     "pyyaml>=6.0.0",
     "httpx>=0.25.0",
-    "itsdangerous>=2.1.0"
+    "itsdangerous>=2.1.0",
+    "bcrypt>=4.0.0"
 ]
 
 [project.optional-dependencies]

@@ -1,20 +1,24 @@
 """
-Authentication server with local user management and JWT token validation.
-Replaces Amazon Cognito with local file-based user authentication.
+Simplified Authentication server that validates JWT tokens against Amazon Cognito.
+Configuration is passed via headers instead of environment variables.
 """
 
 import argparse
 import logging
 import os
+import boto3
 import jwt
+import requests
 import json
 import yaml
 import time
 import uuid
 import hashlib
+from jwt.api_jwk import PyJWK
 from datetime import datetime
 from typing import Dict, Optional, List, Any
 from functools import lru_cache
+from botocore.exceptions import ClientError
 from fastapi import FastAPI, Header, HTTPException, Request, Cookie
 from fastapi.responses import JSONResponse, Response, RedirectResponse
 import uvicorn
@@ -25,9 +29,6 @@ import secrets
 import urllib.parse
 import httpx
 from string import Template
-
-# Import our local user management
-from local_user_manager import user_manager, authenticate_user, authenticate_api_key
 
 # Configure logging
 logging.basicConfig(
@@ -119,12 +120,12 @@ def mask_headers(headers: dict) -> dict:
             masked[key] = value
     return masked
 
-def map_local_groups_to_scopes(groups: List[str]) -> List[str]:
+def map_cognito_groups_to_scopes(groups: List[str]) -> List[str]:
     """
-    Map local groups to MCP scopes using the group_mappings from scopes.yml configuration.
+    Map Cognito groups to MCP scopes using the group_mappings from scopes.yml configuration.
     
     Args:
-        groups: List of local group names
+        groups: List of Cognito group names
         
     Returns:
         List of MCP scopes
@@ -186,7 +187,7 @@ def validate_session_cookie(cookie_value: str) -> Dict[str, any]:
         groups = data.get('groups', [])
         
         # Map groups to scopes
-        scopes = map_local_groups_to_scopes(groups)
+        scopes = map_cognito_groups_to_scopes(groups)
         
         logger.info(f"Session cookie validated for user: {hash_username(username)}")
         
@@ -397,9 +398,9 @@ def check_rate_limit(username: str) -> bool:
 
 # Create FastAPI app
 app = FastAPI(
-    title="Local Auth Server",
-    description="Authentication server with local user management and JWT token validation",
-    version="0.2.0"
+    title="Simplified Auth Server",
+    description="Authentication server for validating JWT tokens against Amazon Cognito with header-based configuration",
+    version="0.1.0"
 )
 
 class TokenValidationResponse(BaseModel):
@@ -427,110 +428,209 @@ class GenerateTokenResponse(BaseModel):
     issued_at: int
     description: Optional[str] = None
 
-class LocalTokenValidator:
+class SimplifiedCognitoValidator:
     """
-    Local token validator that handles self-signed JWT tokens and basic auth
+    Simplified Cognito token validator that doesn't rely on environment variables
     """
     
-    def __init__(self):
-        """Initialize with minimal configuration"""
-        pass
-    
-    def validate_basic_auth(self, auth_header: str) -> Dict:
+    def __init__(self, region: str = "us-east-1"):
         """
-        Validate HTTP Basic Auth credentials against local users.
+        Initialize with minimal configuration
         
         Args:
-            auth_header: Authorization header value (Basic base64-encoded)
-            
-        Returns:
-            Dict containing validation results
-            
-        Raises:
-            ValueError: If auth is invalid
+            region: Default AWS region
         """
-        try:
-            import base64
-            
-            if not auth_header.startswith('Basic '):
-                raise ValueError("Invalid Basic auth format")
-            
-            # Decode base64 credentials
-            encoded_credentials = auth_header[6:]  # Remove 'Basic '
-            decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
-            username, password = decoded_credentials.split(':', 1)
-            
-            # Authenticate with local user manager
-            user_info = authenticate_user(username, password)
-            if not user_info:
-                raise ValueError("Invalid username or password")
-            
-            # Map groups to scopes
-            scopes = map_local_groups_to_scopes(user_info['groups'])
-            
-            logger.info(f"Successfully authenticated user via Basic auth: {hash_username(username)}")
-            
-            return {
-                'valid': True,
-                'method': 'basic_auth',
-                'username': user_info['username'],
-                'client_id': 'basic-auth',
-                'scopes': scopes,
-                'groups': user_info['groups'],
-                'data': user_info
-            }
-            
-        except Exception as e:
-            logger.warning(f"Basic auth validation failed: {e}")
-            raise ValueError(f"Basic authentication failed: {e}")
+        self.default_region = region
+        self._cognito_clients = {}  # Cache boto3 clients by region
+        self._jwks_cache = {}  # Cache JWKS by user pool
+        
+    def _get_cognito_client(self, region: str):
+        """Get or create boto3 cognito client for region"""
+        if region not in self._cognito_clients:
+            self._cognito_clients[region] = boto3.client('cognito-idp', region_name=region)
+        return self._cognito_clients[region]
     
-    def validate_api_key_auth(self, auth_header: str) -> Dict:
+    def _get_jwks(self, user_pool_id: str, region: str) -> Dict:
         """
-        Validate API key authentication.
+        Get JSON Web Key Set (JWKS) from Cognito with caching
+        """
+        cache_key = f"{region}:{user_pool_id}"
+        
+        if cache_key not in self._jwks_cache:
+            try:
+                issuer = f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
+                jwks_url = f"{issuer}/.well-known/jwks.json"
+                
+                response = requests.get(jwks_url, timeout=10)
+                response.raise_for_status()
+                jwks = response.json()
+                
+                self._jwks_cache[cache_key] = jwks
+                logger.debug(f"Retrieved JWKS for {cache_key} with {len(jwks.get('keys', []))} keys")
+                
+            except Exception as e:
+                logger.error(f"Failed to retrieve JWKS from {jwks_url}: {e}")
+                raise ValueError(f"Cannot retrieve JWKS: {e}")
+        
+        return self._jwks_cache[cache_key]
+
+    def validate_jwt_token(self, 
+                          access_token: str, 
+                          user_pool_id: str, 
+                          client_id: str,
+                          region: str = None) -> Dict:
+        """
+        Validate JWT access token
         
         Args:
-            auth_header: Authorization header value (Bearer api-key)
+            access_token: The bearer token to validate
+            user_pool_id: Cognito User Pool ID
+            client_id: Expected client ID
+            region: AWS region (uses default if not provided)
             
         Returns:
-            Dict containing validation results
+            Dict containing token claims if valid
             
         Raises:
-            ValueError: If auth is invalid
+            ValueError: If token is invalid
         """
+        if not region:
+            region = self.default_region
+            
         try:
-            if not auth_header.startswith('Bearer '):
-                raise ValueError("Invalid Bearer auth format")
+            # Decode header to get key ID
+            unverified_header = jwt.get_unverified_header(access_token)
+            kid = unverified_header.get('kid')
             
-            api_key = auth_header[7:]  # Remove 'Bearer '
+            if not kid:
+                raise ValueError("Token missing 'kid' in header")
             
-            # Check if this looks like our API key format
-            if not api_key.startswith('mcp-api-'):
-                # Not our API key format, let it fall through to JWT validation
-                raise ValueError("Not an API key format")
+            # Get JWKS and find matching key
+            jwks = self._get_jwks(user_pool_id, region)
+            signing_key = None
             
-            # Authenticate with local user manager
-            user_info = authenticate_api_key(api_key)
-            if not user_info:
-                raise ValueError("Invalid API key")
+            for key in jwks.get('keys', []):
+                if key.get('kid') == kid:
+                    # Handle different versions of PyJWT
+                    try:
+                        # For newer versions of PyJWT
+                        from jwt.algorithms import RSAAlgorithm
+                        signing_key = RSAAlgorithm.from_jwk(key)
+                    except (ImportError, AttributeError):
+                        try:
+                            # For older versions of PyJWT
+                            from jwt.algorithms import get_default_algorithms
+                            algorithms = get_default_algorithms()
+                            signing_key = algorithms['RS256'].from_jwk(key)
+                        except (ImportError, AttributeError):
+                            # For PyJWT 2.0.0+
+                            signing_key = PyJWK.from_jwk(json.dumps(key)).key
+                    break
             
-            # Map groups to scopes
-            scopes = map_local_groups_to_scopes(user_info['groups'])
+            if not signing_key:
+                raise ValueError(f"No matching key found for kid: {kid}")
             
-            logger.info(f"Successfully authenticated user via API key: {hash_username(user_info['username'])}")
+            # Set up issuer for validation
+            issuer = f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
             
-            return {
-                'valid': True,
-                'method': 'api_key',
-                'username': user_info['username'],
-                'client_id': 'api-key-auth',
-                'scopes': scopes,
-                'groups': user_info['groups'],
-                'data': user_info
+            # Validate and decode token
+            claims = jwt.decode(
+                access_token,
+                signing_key,
+                algorithms=['RS256'],
+                issuer=issuer,
+                options={
+                    "verify_aud": False,  # M2M tokens might not have audience
+                    "verify_exp": True,   # Always check expiration
+                    "verify_iat": True,   # Check issued at time
+                }
+            )
+            
+            # Additional validations
+            token_use = claims.get('token_use')
+            if token_use not in ['access', 'id']:  # Allow both access and id tokens
+                raise ValueError(f"Invalid token_use: {token_use}")
+            
+            # For M2M tokens, check client_id
+            token_client_id = claims.get('client_id')
+            if token_client_id and token_client_id != client_id:
+                logger.warning(f"Token issued for different client: {token_client_id} vs expected {client_id}")
+                # Don't fail immediately - could be user token with different structure
+            
+            logger.info(f"Successfully validated JWT token for client/user")
+            return claims
+            
+        except jwt.ExpiredSignatureError:
+            error_msg = "Token has expired"
+            logger.warning(error_msg)
+            raise ValueError(error_msg)
+        except jwt.InvalidTokenError as e:
+            error_msg = f"Invalid token: {e}"
+            logger.warning(error_msg)
+            raise ValueError(error_msg)
+        except Exception as e:
+            error_msg = f"JWT validation error: {e}"
+            logger.error(error_msg)
+            raise ValueError(f"Token validation failed: {e}")
+
+    def validate_with_boto3(self, 
+                           access_token: str, 
+                           region: str = None) -> Dict:
+        """
+        Validate token using boto3 GetUser API (works for user tokens)
+        
+        Args:
+            access_token: The bearer token to validate
+            region: AWS region
+            
+        Returns:
+            Dict containing user information if valid
+            
+        Raises:
+            ValueError: If token is invalid
+        """
+        if not region:
+            region = self.default_region
+            
+        try:
+            cognito_client = self._get_cognito_client(region)
+            response = cognito_client.get_user(AccessToken=access_token)
+            
+            # Extract user attributes
+            user_attributes = {}
+            for attr in response.get('UserAttributes', []):
+                user_attributes[attr['Name']] = attr['Value']
+            
+            result = {
+                'username': response.get('Username'),
+                'user_attributes': user_attributes,
+                'user_status': response.get('UserStatus'),
+                'token_use': 'access',  # boto3 method implies access token
+                'auth_method': 'boto3'
             }
             
+            logger.info(f"Successfully validated token via boto3 for user {hash_username(result['username'])}")
+            return result
+            
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            
+            if error_code == 'NotAuthorizedException':
+                error_msg = "Invalid or expired access token"
+                logger.warning(f"Cognito error {error_code}: {error_message}")
+                raise ValueError(error_msg)
+            elif error_code == 'UserNotFoundException':
+                error_msg = "User not found"
+                logger.warning(f"Cognito error {error_code}: {error_message}")
+                raise ValueError(error_msg)
+            else:
+                logger.error(f"Cognito error {error_code}: {error_message}")
+                raise ValueError(f"Token validation failed: {error_message}")
+                
         except Exception as e:
-            logger.debug(f"API key validation failed: {e}")
-            raise ValueError(f"API key authentication failed: {e}")
+            logger.error(f"Boto3 validation error: {e}")
+            raise ValueError(f"Token validation failed: {e}")
 
     def validate_self_signed_token(self, access_token: str) -> Dict:
         """
@@ -598,68 +698,98 @@ class LocalTokenValidator:
             logger.error(error_msg)
             raise ValueError(f"Self-signed token validation failed: {e}")
 
-    def validate_token(self, auth_header: str, fallback_client_id: str = None) -> Dict:
+    def validate_token(self, 
+                      access_token: str, 
+                      user_pool_id: str, 
+                      client_id: str,
+                      region: str = None) -> Dict:
         """
-        Comprehensive token validation with multiple authentication methods.
-        
-        Supports:
-        1. HTTP Basic Auth (username:password)
-        2. API Key authentication (Bearer mcp-api-xxxx)
-        3. Self-signed JWT tokens (Bearer jwt-token)
+        Comprehensive token validation with fallback methods.
+        Now supports both Cognito tokens and self-signed tokens.
         
         Args:
-            auth_header: Authorization header value
-            fallback_client_id: Fallback client ID for compatibility
+            access_token: The bearer token to validate
+            user_pool_id: Cognito User Pool ID
+            client_id: Expected client ID
+            region: AWS region
             
         Returns:
             Dict containing validation results and token information
         """
-        
-        # Try Basic Auth first
-        if auth_header.startswith('Basic '):
-            try:
-                return self.validate_basic_auth(auth_header)
-            except ValueError as e:
-                logger.debug(f"Basic auth failed: {e}")
-                # Don't fall through, Basic auth should fail explicitly
-                raise ValueError(f"Basic authentication failed: {e}")
-        
-        # Try Bearer token (API key or JWT)
-        if auth_header.startswith('Bearer '):
-            token = auth_header[7:]  # Remove 'Bearer '
+        if not region:
+            region = self.default_region
             
-            # Try API key authentication first (faster)
-            if token.startswith('mcp-api-'):
-                try:
-                    return self.validate_api_key_auth(auth_header)
-                except ValueError as e:
-                    logger.debug(f"API key validation failed: {e}")
-                    raise ValueError(f"API key authentication failed: {e}")
+        # First try self-signed token validation (faster)
+        try:
+            # Quick check if it might be our token by attempting to decode without verification
+            unverified_claims = jwt.decode(access_token, options={"verify_signature": False})
+            if unverified_claims.get('iss') == JWT_ISSUER:
+                logger.debug("Token appears to be self-signed, validating...")
+                return self.validate_self_signed_token(access_token)
+        except Exception:
+            # Not our token or malformed, continue to Cognito validation
+            pass
             
-            # Try self-signed JWT token
+        # Try JWT validation with Cognito
+        try:
+            jwt_claims = self.validate_jwt_token(access_token, user_pool_id, client_id, region)
+            
+            # Extract scopes and other info
+            scopes = []
+            if 'scope' in jwt_claims:
+                scopes = jwt_claims['scope'].split() if jwt_claims['scope'] else []
+            
+            return {
+                'valid': True,
+                'method': 'jwt',
+                'data': jwt_claims,
+                'client_id': jwt_claims.get('client_id') or '',
+                'username': jwt_claims.get('cognito:username') or jwt_claims.get('username') or '',
+                'expires_at': jwt_claims.get('exp'),
+                'scopes': scopes,
+                'groups': jwt_claims.get('cognito:groups', [])
+            }
+            
+        except ValueError as jwt_error:
+            logger.debug(f"JWT validation failed: {jwt_error}, trying boto3")
+            
+            # Try boto3 validation as fallback
             try:
-                return self.validate_self_signed_token(token)
-            except ValueError as e:
-                logger.debug(f"JWT validation failed: {e}")
-                raise ValueError(f"JWT token validation failed: {e}")
-        
-        raise ValueError("Unsupported authentication method")
+                boto3_data = self.validate_with_boto3(access_token, region)
+                
+                return {
+                    'valid': True,
+                    'method': 'boto3',
+                    'data': boto3_data,
+                    'client_id': '',  # boto3 method doesn't provide client_id
+                    'username': boto3_data.get('username') or '',
+                    'user_attributes': boto3_data.get('user_attributes', {}),
+                    'scopes': [],  # boto3 method doesn't provide scopes
+                    'groups': []
+                }
+                
+            except ValueError as boto3_error:
+                logger.debug(f"Boto3 validation failed: {boto3_error}")
+                raise ValueError(f"All validation methods failed. JWT: {jwt_error}, Boto3: {boto3_error}")
 
 # Create global validator instance
-validator = LocalTokenValidator()
+validator = SimplifiedCognitoValidator()
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "local-auth-server", "version": "0.2.0"}
+    return {"status": "healthy", "service": "simplified-auth-server"}
 
 @app.get("/validate")
 async def validate_request(request: Request):
     """
-    Validate a request by extracting configuration from headers and validating the auth token.
+    Validate a request by extracting configuration from headers and validating the bearer token.
     
     Expected headers:
-    - Authorization: Basic <base64> OR Bearer <token-or-api-key>
+    - Authorization: Bearer <token>
+    - X-User-Pool-Id: <user_pool_id>
+    - X-Client-Id: <client_id>
+    - X-Region: <region> (optional, defaults to us-east-1)
     - X-Original-URL: <original_url> (optional, for scope validation)
     
     Returns:
@@ -672,8 +802,11 @@ async def validate_request(request: Request):
     
     try:
         # Extract headers
-        authorization = request.headers.get("X-Authorization") or request.headers.get("Authorization")
+        authorization = request.headers.get("X-Authorization")
         cookie_header = request.headers.get("Cookie", "")
+        user_pool_id = request.headers.get("X-User-Pool-Id")
+        client_id = request.headers.get("X-Client-Id")
+        region = request.headers.get("X-Region", "us-east-1")
         original_url = request.headers.get("X-Original-URL")
         body = request.headers.get("X-Body")
         
@@ -719,7 +852,9 @@ async def validate_request(request: Request):
         
         # Log specific headers for debugging with masked sensitive data
         logger.info(f"Key Headers: Authorization={bool(authorization)}, Cookie={bool(cookie_header)}, "
-                    f"Original-URL={original_url}")
+                    f"User-Pool-Id={mask_sensitive_id(user_pool_id) if user_pool_id else 'None'}, "
+                    f"Client-Id={mask_sensitive_id(client_id) if client_id else 'None'}, "
+                    f"Region={region}, Original-URL={original_url}")
         logger.info(f"Server Name from URL: {server_name_from_url}")
         
         # Initialize validation result
@@ -747,20 +882,45 @@ async def validate_request(request: Request):
                     logger.warning(f"Session cookie validation failed: {e}")
                     # Fall through to JWT validation
         
-        # SECOND: If no valid session cookie, check for auth header
+        # SECOND: If no valid session cookie, check for JWT token
         if not validation_result:
-            if not authorization:
-                logger.warning("Missing Authorization header and no valid session cookie")
+            # Validate required headers for JWT
+            if not authorization or not authorization.startswith("Bearer "):
+                logger.warning("Missing or invalid Authorization header and no valid session cookie")
                 raise HTTPException(
                     status_code=401,
-                    detail="Missing Authorization header. Expected: Basic <creds> or Bearer <token> or valid session cookie",
-                    headers={"WWW-Authenticate": "Basic", "Connection": "close"}
+                    detail="Missing or invalid Authorization header. Expected: Bearer <token> or valid session cookie",
+                    headers={"WWW-Authenticate": "Bearer", "Connection": "close"}
                 )
             
-            # Validate using our local token validator
-            validation_result = validator.validate_token(authorization)
+            if not user_pool_id:
+                logger.warning("Missing X-User-Pool-Id header")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Missing X-User-Pool-Id header",
+                    headers={"Connection": "close"}
+                )
+            
+            if not client_id:
+                logger.warning("Missing X-Client-Id header")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Missing X-Client-Id header",
+                    headers={"Connection": "close"}
+                )
+            
+            # Extract token
+            access_token = authorization.split(" ")[1]
+            
+            # Validate the token
+            validation_result = validator.validate_token(
+                access_token=access_token,
+                user_pool_id=user_pool_id,
+                client_id=client_id,
+                region=region
+            )
         
-        logger.info(f"Authentication successful using method: {validation_result['method']}")
+        logger.info(f"Token validation successful using method: {validation_result['method']}")
         
         # Parse server and tool information from original URL if available
         server_name = server_name_from_url  # Use the server_name we extracted earlier
@@ -858,11 +1018,11 @@ async def validate_request(request: Request):
         return response
         
     except ValueError as e:
-        logger.warning(f"Authentication failed: {e}")
+        logger.warning(f"Token validation failed: {e}")
         raise HTTPException(
             status_code=401,
             detail=str(e),
-            headers={"WWW-Authenticate": "Basic, Bearer", "Connection": "close"}
+            headers={"WWW-Authenticate": "Bearer", "Connection": "close"}
         )
     except HTTPException as e:
         # If it's a 403 HTTPException, re-raise it as is
@@ -889,15 +1049,16 @@ async def validate_request(request: Request):
 async def get_auth_config():
     """Return the authentication configuration info"""
     return {
-        "auth_type": "local",
-        "description": "Local user management with multiple authentication methods",
-        "supported_methods": [
-            "HTTP Basic Authentication (username:password)",
-            "API Key Authentication (Bearer mcp-api-xxxx)",
-            "Self-signed JWT tokens (Bearer jwt-token)",
-            "Session cookies"
+        "auth_type": "cognito",
+        "description": "Header-based Cognito token validation",
+        "required_headers": [
+            "Authorization: Bearer <token>",
+            "X-User-Pool-Id: <pool_id>",
+            "X-Client-Id: <client_id>"
         ],
-        "version": "0.2.0"
+        "optional_headers": [
+            "X-Region: <region> (default: us-east-1)"
+        ]
     }
 
 @app.post("/internal/tokens", response_model=GenerateTokenResponse)
@@ -1010,7 +1171,7 @@ async def generate_user_token(
 
 def parse_arguments():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Local Auth Server")
+    parser = argparse.ArgumentParser(description="Simplified Auth Server")
 
     parser.add_argument(
         "--host",
@@ -1026,14 +1187,25 @@ def parse_arguments():
         help="Port for the server to listen on (default: 8888)",
     )
 
+    parser.add_argument(
+        "--region",
+        type=str,
+        default="us-east-1",
+        help="Default AWS region (default: us-east-1)",
+    )
+
     return parser.parse_args()
 
 def main():
     """Run the server"""
     args = parse_arguments()
     
-    logger.info(f"Starting local auth server on {args.host}:{args.port}")
-    logger.info(f"Authentication methods: Basic Auth, API Keys, Self-signed JWT, Session cookies")
+    # Update global validator with default region
+    global validator
+    validator = SimplifiedCognitoValidator(region=args.region)
+    
+    logger.info(f"Starting simplified auth server on {args.host}:{args.port}")
+    logger.info(f"Default region: {args.region}")
     
     uvicorn.run(app, host=args.host, port=args.port)
 
