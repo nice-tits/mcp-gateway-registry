@@ -46,6 +46,10 @@ group_mappings:
   - mcp-registry-operator
   - mcp-servers-restricted/read
   - mcp-servers-restricted/execute
+  mcp-registry-service:
+  - mcp-registry-service
+  - mcp-servers-restricted/read
+  - mcp-servers-restricted/execute
 mcp-servers-unrestricted/read:
 - server: auth_server
   methods:
