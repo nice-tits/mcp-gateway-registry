@@ -1,8 +1,6 @@
 {
-  "/currenttime": true,
   "/fininfo": true,
   "/mcpgw/": true,
-  "/demo-tools/": true,
   "/sre-gateway/": true,
   "/atlassian": true
 }
