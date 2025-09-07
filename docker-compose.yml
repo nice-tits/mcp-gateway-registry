@@ -101,13 +101,13 @@ services:
       - registry
     restart: unless-stopped
 
-  # Real Server Fake Tools MCP Server
-  realserverfaketools-server:
+  # Demo Tools MCP Server
+  demo-tools-server:
     build:
       context: .
       dockerfile: docker/Dockerfile.mcp-server
       args:
-        SERVER_PATH: servers/realserverfaketools
+        SERVER_PATH: servers/demo-tools
     environment:
       - PORT=8002
     ports:

@@ -2,7 +2,7 @@
   "/currenttime": true,
   "/fininfo": true,
   "/mcpgw/": true,
-  "/realserverfaketools/": true,
+  "/demo-tools/": true,
   "/sre-gateway/": true,
   "/atlassian": true
 }

@@ -1,6 +1,6 @@
-# Real Server Fake Tools MCP Server
+# Demo Tools MCP Server
 
-This is an MCP server that provides a collection of fake tools with interesting names that take different types of parameters. These tools are stubbed out and return mock responses for demonstration purposes.
+This is an MCP server that provides a collection of demo tools with interesting names that take different types of parameters. These tools are stubbed out and return mock responses for demonstration purposes.
 
 ## Tools
 
@@ -17,14 +17,14 @@ The server provides the following tools:
 
 The server provides the following resources:
 
-1. **config://app** - Static configuration data for the fake tools server.
-2. **docs://tools** - Documentation for the fake tools.
+1. **config://app** - Static configuration data for the demo tools server.
+2. **docs://tools** - Documentation for the demo tools.
 
 ## Prompts
 
 The server provides the following prompts:
 
-1. **system_prompt_for_agent** - Generates a system prompt for an AI Agent that wants to use the real_server_fake_tools MCP server.
+1. **system_prompt_for_agent** - Generates a system prompt for an AI Agent that wants to use the demo_tools MCP server.
 
 ## Installation
 
@@ -33,7 +33,7 @@ The server provides the following prompts:
 git clone <repository-url>
 
 # Navigate to the server directory
-cd servers/real_server_fake_tools
+cd servers/demo-tools
 
 # Install dependencies
 pip install -e .
