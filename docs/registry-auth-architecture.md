@@ -1,12 +1,12 @@
 # Registry Authentication Architecture
 
-This document provides comprehensive technical documentation for the MCP Gateway Registry's authentication and authorization system. While the main [auth.md](./auth.md) covers the overall system architecture, this document focuses specifically on the **registry application's internal authentication mechanisms**, UI-based authentication flows, and technical implementation details.
+This document provides comprehensive technical documentation for the MCP Gateway Registry's local authentication and authorization system. While the main [auth.md](./auth.md) covers the overall system architecture, this document focuses specifically on the **registry application's internal authentication mechanisms**, local user management, and technical implementation details.
 
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Authentication Architecture](#authentication-architecture)
-3. [UI Authentication System](#ui-authentication-system)
+3. [Local Authentication System](#local-authentication-system)
 4. [Authorization & Permissions](#authorization--permissions)
 5. [Technical Implementation](#technical-implementation)
 6. [Configuration](#configuration)
@@ -14,19 +14,20 @@ This document provides comprehensive technical documentation for the MCP Gateway
 
 ## Overview
 
-The MCP Gateway Registry implements a sophisticated dual-authentication system that supports:
+The MCP Gateway Registry implements a sophisticated local authentication system that supports:
 
-- **Traditional username/password authentication** for local development and basic setups
-- **OAuth2/SAML integration** with enterprise identity providers (Cognito, etc.)
+- **Local username/password authentication** with bcrypt password hashing
+- **API key authentication** for machine-to-machine access
+- **Self-signed JWT token authentication** with configurable scopes
 - **Session-based authentication** using secure HTTP cookies
 - **Role-based access control** with groups and scopes
 - **Fine-grained permissions** for server management operations
 
 ### Key Features
 
-- 🔐 **Dual Authentication Methods**: Traditional + OAuth2
+- 🔐 **Multiple Authentication Methods**: Basic Auth, API Keys, JWT Tokens
 - 🎯 **Role-Based Access Control**: Admin, User, and custom roles
-- 🏢 **Enterprise Integration**: Cognito, SAML, and other IdPs
+- 🏠 **No External Dependencies**: Self-contained local user management
 - 🔒 **Secure Session Management**: Encrypted cookies with expiration
 - 🎛️ **Permission-Based UI**: Dynamic UI based on user permissions
 - 📊 **Audit Trail**: Comprehensive logging of authentication events
@@ -55,10 +56,10 @@ graph TB
         Sessions[Session Data Store]
     end
     
-    subgraph "External Systems"
+    subgraph "Local Authentication"
         AuthServer[Auth Server<br/>:8888]
-        Cognito[AWS Cognito]
-        LocalAuth[Local User DB]
+        UserDB[Local User DB<br/>users.yml]
+        LocalAuth[Local Auth Manager]
     end
     
     UI --> AuthRoutes
@@ -71,18 +72,18 @@ graph TB
     SessionSigner --> Sessions
     
     AuthRoutes -.-> AuthServer
-    AuthServer -.-> Cognito
-    AuthRoutes -.-> LocalAuth
+    AuthServer -.-> UserDB
+    AuthServer -.-> LocalAuth
     
     classDef browser fill:#e3f2fd,stroke:#1976d2
     classDef registry fill:#f3e5f5,stroke:#7b1fa2
     classDef session fill:#fff3e0,stroke:#f57c00
-    classDef external fill:#e8f5e8,stroke:#388e3c
+    classDef local fill:#e8f5e8,stroke:#388e3c
     
     class UI,LoginForm browser
     class AuthRoutes,AuthDeps,ServerRoutes,Templates registry
     class Cookies,SessionSigner,Sessions session
-    class AuthServer,Cognito,LocalAuth external
+    class AuthServer,UserDB,LocalAuth local
 ```
 
 ### Authentication Flow Architecture
@@ -92,42 +93,27 @@ sequenceDiagram
     participant U as User/Browser
     participant R as Registry App
     participant AS as Auth Server
-    participant IdP as Identity Provider
+    participant UDB as Local User DB
     
-    Note over U,IdP: 1. Initial Access (Unauthenticated)
+    Note over U,UDB: 1. Initial Access (Unauthenticated)
     U->>R: GET / (no session cookie)
     R->>R: Check session cookie
     R->>U: 302 Redirect to /login
     
-    Note over U,IdP: 2. Authentication Method Selection
+    Note over U,UDB: 2. Authentication Method Selection
     U->>R: GET /login
-    R->>AS: GET /oauth2/providers
-    AS->>R: Available OAuth2 providers
-    R->>U: Login form with OAuth options
+    R->>U: Login form (username/password)
     
-    Note over U,IdP: 3a. Traditional Authentication
-    alt Traditional Login
-        U->>R: POST /login (username/password)
-        R->>R: validate_login_credentials()
-        R->>R: create_session_cookie()
-        R->>U: Set mcp_gateway_session cookie + redirect
+    Note over U,UDB: 3. Local Authentication
+    U->>R: POST /login (username/password)
+    R->>AS: Validate credentials
+    AS->>UDB: Check username/password hash
+    UDB->>AS: User data + groups
+    AS->>AS: Map groups to scopes
+    R->>R: create_session_cookie()
+    R->>U: Set mcp_gateway_session cookie + redirect
     
-    Note over U,IdP: 3b. OAuth2 Authentication
-    else OAuth2 Login
-        U->>R: GET /auth/{provider}
-        R->>U: 302 Redirect to Auth Server
-        U->>AS: OAuth2 flow initiation
-        AS->>IdP: OAuth2 PKCE flow
-        IdP->>AS: Auth code + user info
-        AS->>AS: Map groups to scopes
-        AS->>AS: Create session cookie
-        AS->>U: Set mcp_gateway_session cookie
-        U->>R: GET /auth/callback
-        R->>R: Validate session cookie
-        R->>U: 302 Redirect to /
-    end
-    
-    Note over U,IdP: 4. Authenticated Access
+    Note over U,UDB: 4. Authenticated Access
     U->>R: GET / (with session cookie)
     R->>R: enhanced_auth() dependency
     R->>R: Decode & validate session
@@ -135,11 +121,11 @@ sequenceDiagram
     R->>U: Filtered dashboard based on permissions
 ```
 
-## UI Authentication System
+## Local Authentication System
 
 ### Login Interface Components
 
-The registry provides a modern, responsive login interface that dynamically adapts based on available authentication providers.
+The registry provides a modern, responsive login interface with local authentication.
 
 #### Login Form Structure
 
@@ -149,68 +135,56 @@ graph LR
         LoginHeader[Header with Logo]
         ErrorDisplay[Error Message Display]
         
-        subgraph "Authentication Options"
-            TraditionalForm[Traditional Login Form]
-            OAuth2Section[OAuth2 Provider Buttons]
-        end
-        
-        subgraph "Traditional Form"
+        subgraph "Authentication Form"
             UsernameField[Username Input]
             PasswordField[Password Input]
             LoginButton[Login Button]
         end
         
-        subgraph "OAuth2 Providers"
-            CognitoBtn[AWS Cognito Button]
-            SAMLBtn[SAML Provider Button]
-            CustomBtn[Custom Provider Button]
+        subgraph "Additional Options"
+            APIKeyInfo[API Key Documentation Link]
+            ForgotPassword[Password Reset Info]
         end
     end
     
     LoginHeader --> ErrorDisplay
-    ErrorDisplay --> TraditionalForm
-    ErrorDisplay --> OAuth2Section
-    TraditionalForm --> UsernameField
-    TraditionalForm --> PasswordField
-    TraditionalForm --> LoginButton
-    OAuth2Section --> CognitoBtn
-    OAuth2Section --> SAMLBtn
-    OAuth2Section --> CustomBtn
+    ErrorDisplay --> UsernameField
+    UsernameField --> PasswordField
+    PasswordField --> LoginButton
+    LoginButton --> APIKeyInfo
+    APIKeyInfo --> ForgotPassword
     
     classDef form fill:#e3f2fd,stroke:#1976d2
-    classDef oauth fill:#fff3e0,stroke:#f57c00
+    classDef info fill:#fff3e0,stroke:#f57c00
     classDef input fill:#f3e5f5,stroke:#7b1fa2
     
-    class TraditionalForm,UsernameField,PasswordField,LoginButton form
-    class OAuth2Section,CognitoBtn,SAMLBtn,CustomBtn oauth
+    class UsernameField,PasswordField,LoginButton form
+    class APIKeyInfo,ForgotPassword info
     class LoginHeader,ErrorDisplay input
 ```
 
-#### Dynamic Provider Loading
+#### Authentication Methods
 
-The login form dynamically loads available OAuth2 providers:
+The system supports multiple authentication methods:
 
 ```python
 # registry/auth/routes.py
-async def get_oauth2_providers():
-    """Fetch available OAuth2 providers from auth server"""
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{settings.auth_server_url}/oauth2/providers")
-            if response.status_code == 200:
-                return response.json().get("providers", [])
-    except Exception as e:
-        logger.warning(f"Failed to fetch OAuth2 providers: {e}")
-    return []
-
-@router.get("/login", response_class=HTMLResponse)
-async def login_form(request: Request, error: str | None = None):
-    oauth_providers = await get_oauth2_providers()
-    return templates.TemplateResponse("login.html", {
-        "request": request, 
-        "error": error,
-        "oauth_providers": oauth_providers
-    })
+@router.post("/login")
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    """Handle traditional username/password login"""
+    if validate_login_credentials(username, password):
+        session_cookie = create_session_cookie(username, auth_method="basic")
+        response = RedirectResponse(url="/", status_code=302)
+        response.set_cookie(
+            key=settings.session_cookie_name,
+            value=session_cookie,
+            max_age=settings.session_max_age_seconds,
+            httponly=True,
+            secure=settings.is_production
+        )
+        return response
+    else:
+        return RedirectResponse(url="/login?error=invalid_credentials", status_code=302)
 ```
 
 ### Dashboard UI with Permission-Based Access
@@ -455,21 +429,15 @@ def enhanced_auth(session: str = None) -> Dict[str, Any]:
     
     username = session_data['username']
     groups = session_data.get('groups', [])
-    auth_method = session_data.get('auth_method', 'traditional')
+    auth_method = session_data.get('auth_method', 'basic')
     
-    # Map groups to scopes
-    if auth_method == 'oauth2':
-        scopes = map_cognito_groups_to_scopes(groups)
-    else:
-        # Traditional users get admin scopes
-        scopes = ['mcp-servers-unrestricted/read', 'mcp-servers-unrestricted/execute']
-        if not groups:
-            groups = ['mcp-admin']
+    # Map groups to scopes using local configuration
+    scopes = map_local_groups_to_scopes(groups)
     
     # Calculate permissions
     accessible_servers = get_user_accessible_servers(scopes)
     can_modify = user_can_modify_servers(groups, scopes)
-    is_admin = 'mcp-admin' in groups
+    is_admin = 'mcp-registry-admin' in groups
     
     return {
         'username': username,
@@ -607,7 +575,7 @@ async def toggle_service_route(service_path: str,
     # Perform toggle...
 ```
 
-### OAuth2 Integration Architecture
+### Local Authentication Integration Architecture
 
 ```mermaid
 graph LR
@@ -617,33 +585,60 @@ graph LR
         Config[Configuration]
     end
     
-    subgraph "External Auth Server"
-        OAuth2Handler[OAuth2 Handler]
-        ProviderManager[Provider Manager]
+    subgraph "Local Auth Server"
+        AuthHandler[Auth Handler]
+        UserManager[User Manager]
         TokenValidator[Token Validator]
     end
     
-    subgraph "Identity Providers"
-        Cognito[AWS Cognito]
-        SAML[SAML Provider]
-        Custom[Custom OAuth2]
+    subgraph "Local Storage"
+        UsersYAML[users.yml]
+        ScopesYAML[scopes.yml]
+        Sessions[Session Store]
     end
     
-    AuthRoutes --> OAuth2Handler
+    AuthRoutes --> AuthHandler
     AuthDeps --> Config
-    OAuth2Handler --> ProviderManager
-    ProviderManager --> Cognito
-    ProviderManager --> SAML
-    ProviderManager --> Custom
-    TokenValidator --> Cognito
+    AuthHandler --> UserManager
+    UserManager --> UsersYAML
+    UserManager --> ScopesYAML
+    TokenValidator --> Sessions
     
     classDef registry fill:#e3f2fd,stroke:#1976d2
     classDef auth fill:#f3e5f5,stroke:#7b1fa2
-    classDef provider fill:#e8f5e8,stroke:#388e3c
+    classDef storage fill:#e8f5e8,stroke:#388e3c
     
     class AuthRoutes,AuthDeps,Config registry
-    class OAuth2Handler,ProviderManager,TokenValidator auth
-    class Cognito,SAML,Custom provider
+    class AuthHandler,UserManager,TokenValidator auth
+    class UsersYAML,ScopesYAML,Sessions storage
+```
+
+### Local User Management
+
+The system manages users locally without external dependencies:
+
+```python
+# auth_server/local_user_manager.py
+class LocalUserManager:
+    def authenticate_user(self, username: str, password: str) -> Optional[Dict[str, Any]]:
+        """Authenticate a user with username and password."""
+        users_data = self._load_users()
+        user = users_data.get('users', {}).get(username)
+        
+        if not user or not user.get('enabled', True):
+            return None
+            
+        # Check password hash
+        password_hash = user.get('password_hash')
+        if password_hash and bcrypt.checkpw(password.encode(), password_hash.encode()):
+            return {
+                'username': username,
+                'groups': user.get('groups', []),
+                'is_service_account': user.get('is_service_account', False),
+                'api_key': user.get('api_key'),
+                'description': user.get('description', '')
+            }
+        return None
 ```
 
 ### WebSocket Authentication
@@ -677,11 +672,11 @@ SECRET_KEY=your-secure-secret-key-here
 SESSION_COOKIE_NAME=mcp_gateway_session
 SESSION_MAX_AGE_SECONDS=28800  # 8 hours
 
-# Traditional authentication
+# Local authentication
 ADMIN_USER=admin
 ADMIN_PASSWORD=secure-password
 
-# OAuth2/External auth server integration
+# Auth server integration
 AUTH_SERVER_URL=http://localhost:8888
 AUTH_SERVER_EXTERNAL_URL=http://localhost:8888
 
@@ -714,24 +709,33 @@ def templates_dir(self) -> Path:
 
 ### Authentication Provider Configuration
 
-#### Traditional Authentication
+#### Local Authentication
 ```python
 # registry/auth/dependencies.py
 def validate_login_credentials(username: str, password: str) -> bool:
-    """Validate traditional login credentials"""
-    return username == settings.admin_user and password == settings.admin_password
+    """Validate local login credentials against users.yml"""
+    from auth_server.local_user_manager import user_manager
+    user_data = user_manager.authenticate_user(username, password)
+    return user_data is not None
 ```
 
-#### OAuth2 Provider Setup
-```python
-# External auth server integration
-async def get_oauth2_providers():
-    """Fetch available OAuth2 providers from auth server"""
-    try:
-        response = await client.get(f"{settings.auth_server_url}/oauth2/providers")
-        return response.json().get("providers", [])
-    except Exception:
-        return []  # Fallback to traditional auth only
+#### User Management Setup
+```yaml
+# auth_server/users.yml
+users:
+  admin:
+    password_hash: "$2b$12$rEvb/D5urDWuuruadQrGnetnV.E5BebAVPtox1FIU1Pjkfo0OHluO"  # "admin"
+    groups:
+      - mcp-registry-admin
+    enabled: true
+    
+  api_service:
+    password_hash: "$2b$12$..."
+    api_key: "mcp-api-key-example-12345abcdef"
+    groups:
+      - mcp-registry-service
+    enabled: true
+    is_service_account: true
 ```
 
 ## Troubleshooting
@@ -757,26 +761,37 @@ except BadSignature:
 - Verify cookie expiration settings
 - Ensure browser accepts cookies from the domain
 
-#### 2. OAuth2 Integration Issues
+#### 2. Local Authentication Issues
 
-**Issue**: OAuth2 login fails or redirects incorrectly
+**Issue**: User authentication fails with valid credentials
 ```python
-# Debug OAuth2 callback
-@router.get("/auth/callback")
-async def oauth2_callback(request: Request, error: str = None):
-    if error:
-        logger.error(f"OAuth2 error: {error}")
-        return RedirectResponse(url=f"/login?error={error}")
-    
-    # Check session cookie validity
-    session_cookie = request.cookies.get(settings.session_cookie_name)
-    logger.info(f"OAuth2 callback session: {session_cookie[:20]}..." if session_cookie else "No session")
+# Debug local authentication
+from auth_server.local_user_manager import user_manager
+result = user_manager.authenticate_user('admin', 'admin')
+logger.info(f"Auth result: {result}")
 ```
 
 **Solutions**:
-- Verify `AUTH_SERVER_URL` and `AUTH_SERVER_EXTERNAL_URL` settings
-- Check auth server connectivity: `curl http://localhost:8888/oauth2/providers`
-- Ensure redirect URIs match in OAuth2 provider configuration
+- Check user exists in `auth_server/users.yml` and is enabled
+- Verify password hash is correct (regenerate with bcrypt if needed)
+- Ensure auth server is running and accessible
+- Check for typos in username/password
+
+#### 3. API Key Authentication Issues
+
+**Issue**: API key authentication not working
+```python
+# Debug API key validation
+from auth_server.local_user_manager import user_manager
+result = user_manager.authenticate_api_key('mcp-api-key-example-12345abcdef')
+logger.info(f"API key result: {result}")
+```
+
+**Solutions**:
+- Verify API key format: `mcp-api-key-xxxxx`
+- Check API key exists in users.yml for the appropriate user
+- Ensure user with API key has correct groups assigned
+- Confirm API key header format: `Authorization: Bearer mcp-api-key-xxxxx`
 
 #### 3. Permission Issues
 
@@ -792,9 +807,10 @@ def debug_user_permissions(user_context: dict):
 ```
 
 **Solutions**:
-- Verify group mappings in `auth_server/scopes.yml`
-- Check user group assignments in identity provider
+- Verify user group assignments in `auth_server/users.yml`
+- Check group mappings in `auth_server/scopes.yml`
 - Ensure scope configuration matches server names exactly
+- Confirm user is enabled and has appropriate groups
 
 #### 4. WebSocket Authentication Issues
 
