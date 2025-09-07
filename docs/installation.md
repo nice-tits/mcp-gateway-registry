@@ -14,7 +14,7 @@ Complete installation instructions for the MCP Gateway & Registry on various pla
 
 ```bash
 # 1. Clone and setup
-git clone https://github.com/agentic-community/mcp-gateway-registry.git
+git clone https://github.com/nice-tits/mcp-gateway-registry.git
 cd mcp-gateway-registry
 
 # 2. Configure environment (optional - defaults work)

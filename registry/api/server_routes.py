@@ -793,42 +793,33 @@ async def generate_user_token(
             "description": description
         }
         
-        # Call auth server internal API (no authentication needed since both are trusted internal services)
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "Content-Type": "application/json"
-            }
-            
-            auth_server_url = settings.auth_server_url
-            response = await client.post(
-                f"{auth_server_url}/internal/tokens",
-                json=auth_request,
-                headers=headers,
-                timeout=10.0
-            )
-            
-            if response.status_code == 200:
-                token_data = response.json()
-                logger.info(f"Successfully generated token for user '{user_context['username']}'")
-                return {
-                    "success": True,
-                    "token_data": token_data,
-                    "user_scopes": user_context["scopes"],
-                    "requested_scopes": requested_scopes or user_context["scopes"]
-                }
-            else:
-                error_detail = "Unknown error"
-                try:
-                    error_response = response.json()
-                    error_detail = error_response.get("detail", "Unknown error")
-                except:
-                    error_detail = response.text
-                
-                logger.warning(f"Auth server returned error {response.status_code}: {error_detail}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Token generation failed: {error_detail}"
-                )
+        # Since we removed the auth server, provide a simplified token generation
+        # In a real deployment, you might want to generate proper JWT tokens here
+        import time
+        import hashlib
+        
+        # Create a simple token based on username and timestamp
+        timestamp = int(time.time())
+        expiry = timestamp + (expires_in_hours * 3600)
+        
+        # Simple token generation (not a JWT, just a hash-based token)
+        token_data = f"{user_context['username']}:{timestamp}:{expires_in_hours}:{description}"
+        token_hash = hashlib.sha256(token_data.encode()).hexdigest()
+        simple_token = f"mcp-token-{token_hash[:32]}"
+        
+        logger.info(f"Generated simple token for user '{user_context['username']}'")
+        return {
+            "success": True,
+            "token_data": {
+                "access_token": simple_token,
+                "token_type": "bearer",
+                "expires_in": expires_in_hours * 3600,
+                "expires_at": expiry,
+                "description": description
+            },
+            "user_scopes": user_context["scopes"],
+            "requested_scopes": requested_scopes or user_context["scopes"]
+        }
                 
     except HTTPException:
         raise

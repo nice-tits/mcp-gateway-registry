@@ -374,4 +374,4 @@ openssl s_client -connect your-gateway.com:443
 - [Authentication Guide](auth.md) - Identity provider setup
 - [Troubleshooting Guide](troubleshooting.md) - Common issues and solutions
 - [API Reference](registry_api.md) - Programmatic management
-- [GitHub Discussions](https://github.com/agentic-community/mcp-gateway-registry/discussions) - Community support
+- [GitHub Discussions](https://github.com/nice-tits/mcp-gateway-registry/discussions) - Community support

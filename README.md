@@ -3,11 +3,11 @@
 
 **Enterprise-Ready Gateway for AI Development Tools**
 
-[![GitHub stars](https://img.shields.io/github/stars/agentic-community/mcp-gateway-registry?style=flat&logo=github)](https://github.com/agentic-community/mcp-gateway-registry/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/agentic-community/mcp-gateway-registry?style=flat&logo=github)](https://github.com/agentic-community/mcp-gateway-registry/network)
-[![GitHub issues](https://img.shields.io/github/issues/agentic-community/mcp-gateway-registry?style=flat&logo=github)](https://github.com/agentic-community/mcp-gateway-registry/issues)
-[![License](https://img.shields.io/github/license/agentic-community/mcp-gateway-registry?style=flat)](https://github.com/agentic-community/mcp-gateway-registry/blob/main/LICENSE)
-[![GitHub release](https://img.shields.io/github/v/release/agentic-community/mcp-gateway-registry?style=flat&logo=github)](https://github.com/agentic-community/mcp-gateway-registry/releases)
+[![GitHub stars](https://img.shields.io/github/stars/nice-tits/mcp-gateway-registry?style=flat&logo=github)](https://github.com/nice-tits/mcp-gateway-registry/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/nice-tits/mcp-gateway-registry?style=flat&logo=github)](https://github.com/nice-tits/mcp-gateway-registry/network)
+[![GitHub issues](https://img.shields.io/github/issues/nice-tits/mcp-gateway-registry?style=flat&logo=github)](https://github.com/nice-tits/mcp-gateway-registry/issues)
+[![License](https://img.shields.io/github/license/nice-tits/mcp-gateway-registry?style=flat)](https://github.com/nice-tits/mcp-gateway-registry/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/nice-tits/mcp-gateway-registry?style=flat&logo=github)](https://github.com/nice-tits/mcp-gateway-registry/releases)
 
 [Quick Start](#quick-start) | [Documentation](docs/) | [Enterprise Features](#enterprise-features) | [Community](#community)
 
@@ -358,7 +358,7 @@ All workflows run automatically on:
 - Pull requests to `main` or `develop`
 - Manual workflow dispatch
 
-You can view the latest build status in the [Actions tab](https://github.com/agentic-community/mcp-gateway-registry/actions) of this repository.
+You can view the latest build status in the [Actions tab](https://github.com/nice-tits/mcp-gateway-registry/actions) of this repository.
 
 ### Local Testing Commands
 
@@ -458,11 +458,11 @@ Transform how both autonomous AI agents and development teams access enterprise 
 ### Get Involved
 
 **Join the Discussion**
-- [GitHub Discussions](https://github.com/agentic-community/mcp-gateway-registry/discussions) - Feature requests and general discussion
-- [GitHub Issues](https://github.com/agentic-community/mcp-gateway-registry/issues) - Bug reports and feature requests
+- [GitHub Discussions](https://github.com/nice-tits/mcp-gateway-registry/discussions) - Feature requests and general discussion
+- [GitHub Issues](https://github.com/nice-tits/mcp-gateway-registry/issues) - Bug reports and feature requests
 
 **Resources**
-- [Demo Videos](https://github.com/agentic-community/mcp-gateway-registry#demo-videos) - See the platform in action
+- [Demo Videos](https://github.com/nice-tits/mcp-gateway-registry#demo-videos) - See the platform in action
 
 **Contributing**
 - [Contributing Guide](CONTRIBUTING.md) - How to contribute code and documentation
@@ -475,24 +475,24 @@ The following GitHub issues represent our current development roadmap and planne
 
 **Major Features**
 
-- **[#37 - Multi-Level Registry Support](https://github.com/agentic-community/mcp-gateway-registry/issues/37)**
+- **[#37 - Multi-Level Registry Support](https://github.com/nice-tits/mcp-gateway-registry/issues/37)**
   Add support for federated registries that can connect to other registries, enabling hierarchical MCP infrastructure with cross-IdP authentication.
 
-- **[#38 - Usage Metrics and Analytics System](https://github.com/agentic-community/mcp-gateway-registry/issues/38)**
+- **[#38 - Usage Metrics and Analytics System](https://github.com/nice-tits/mcp-gateway-registry/issues/38)**
   Implement comprehensive usage tracking across user and agent identities, with metrics emission from auth server, registry, and intelligent tool finder.
 
-- **[#39 - Tool Popularity Scoring and Rating System](https://github.com/agentic-community/mcp-gateway-registry/issues/39)**
+- **[#39 - Tool Popularity Scoring and Rating System](https://github.com/nice-tits/mcp-gateway-registry/issues/39)**
   Enhance tool discovery with popularity scores and star ratings based on usage patterns and agent feedback. *Depends on #38.*
 
 **Authentication & Identity**
 
-- **[#18 - Add Token Vending Capability to Auth Server](https://github.com/agentic-community/mcp-gateway-registry/issues/18)**
+- **[#18 - Add Token Vending Capability to Auth Server](https://github.com/nice-tits/mcp-gateway-registry/issues/18)**
   Extend the auth server to provide token vending capabilities for enhanced authentication workflows.
 
-- **[#5 - Add Support for KeyCloak as IdP Provider](https://github.com/agentic-community/mcp-gateway-registry/issues/5)**
+- **[#5 - Add Support for KeyCloak as IdP Provider](https://github.com/nice-tits/mcp-gateway-registry/issues/5)**
   Add KeyCloak integration as an alternative Identity Provider alongside Amazon Cognito.
 
-For the complete list of open issues, feature requests, and bug reports, visit our [GitHub Issues page](https://github.com/agentic-community/mcp-gateway-registry/issues).
+For the complete list of open issues, feature requests, and bug reports, visit our [GitHub Issues page](https://github.com/nice-tits/mcp-gateway-registry/issues).
 
 ---
 
