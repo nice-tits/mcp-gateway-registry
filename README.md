@@ -252,23 +252,25 @@ flowchart TB
 
 ## Quick Start
 
-> **Important:** Before proceeding, ensure you have Docker and Docker Compose installed.
+### 🚀 Production Deployment (Recommended)
 
-Get up and running in 5 minutes with Docker Compose:
+> **Important:** Requires Docker and Docker Compose
+
+Get the full stack running in 5 minutes:
 
 ```bash
-# Clone the repository
+# 1. Clone and setup
 git clone https://github.com/agentic-community/mcp-gateway-registry.git
 cd mcp-gateway-registry
 
-# Configure environment (optional - defaults work for local development)
+# 2. Configure environment (optional - defaults work for development)
 cp .env.example .env
-# Edit .env if you want to change default credentials
+# Edit .env to change default admin credentials if desired
 
-# Deploy with Docker Compose
+# 3. Deploy complete stack with Docker Compose
 ./build_and_run.sh
 
-# Access the registry
+# 4. Access the registry
 open http://localhost:7860
 ```
 
@@ -279,9 +281,97 @@ open http://localhost:7860
 
 **⚠️ Change these credentials in production!**
 
-**That's it!** Your enterprise MCP gateway is now running.
+### 🧪 Development & Testing
+
+For development work, testing, or contributing:
+
+```bash
+# Install Python dependencies
+pip install -e .[dev]
+
+# Check test setup
+make check-deps
+
+# Run tests
+make test-unit          # Unit tests only
+make test-integration   # Integration tests
+make test               # Full test suite
+make test-coverage      # With coverage reports
+
+# Run specific domain tests
+make test-auth          # Authentication tests
+make test-servers       # Server management tests
+make test-search        # Search and AI tests
+```
+
+### 📋 Available Commands
+
+```bash
+# Testing
+make test               # Full test suite
+make test-fast          # Quick tests only
+make lint               # Code quality checks
+make clean              # Clean up test artifacts
+
+# Development
+./build_and_run.sh      # Full Docker stack
+make dev-test           # Dev workflow: clean + test
+```
+
+**That's it!** Choose your path:
+- **Just want to try it?** → Use the Docker deployment above
+- **Want to develop/contribute?** → See [Development Guide](DEVELOPMENT.md)
+- **Need production deployment?** → See [Installation Guide](docs/installation.md)
 
 ➡️ **Next Steps:** [Complete Installation Guide](docs/installation.md) | [Authentication Setup](docs/auth.md) | [AI Assistant Integration](docs/ai-coding-assistants-setup.md)
+
+---
+
+## 🏗️ Continuous Integration & Deployment
+
+### GitHub Actions Workflows
+
+This repository includes comprehensive CI/CD workflows:
+
+**🧪 [Test Suite](.github/workflows/test.yml)**
+- Runs on every push and PR
+- Unit tests, integration tests, domain-specific tests  
+- Code coverage reporting
+- Security scanning with Bandit
+- Supports Python 3.12
+
+**🐳 [Build & Test Docker](.github/workflows/build.yml)**
+- Builds and tests Docker images
+- Frontend compilation and optimization
+- Docker image validation
+- Dockerfile linting with Hadolint
+
+**📚 [Documentation](.github/workflows/docs.yml)**
+- Automatic documentation deployment to GitHub Pages
+- Built with MkDocs and Material theme
+- Deploys on documentation changes
+
+### Build Status
+
+All workflows run automatically on:
+- Push to `main` or `develop` branches  
+- Pull requests to `main` or `develop`
+- Manual workflow dispatch
+
+You can view the latest build status in the [Actions tab](https://github.com/agentic-community/mcp-gateway-registry/actions) of this repository.
+
+### Local Testing Commands
+
+```bash
+# Run the same tests as CI/CD
+make test              # Full test suite (like GitHub Actions)
+make test-fast         # Quick feedback loop
+make lint              # Code quality checks
+make test-coverage     # Generate coverage reports
+
+# Build validation (like Docker workflow)  
+./build_and_run.sh     # Build and test full stack
+```
 
 ---
 
