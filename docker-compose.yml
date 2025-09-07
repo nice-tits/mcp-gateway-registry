@@ -10,10 +10,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - AUTH_SERVER_URL=${AUTH_SERVER_URL}
-      - AUTH_SERVER_EXTERNAL_URL=${AUTH_SERVER_EXTERNAL_URL}
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - SRE_GATEWAY_AUTH_TOKEN=${SRE_GATEWAY_AUTH_TOKEN}
       - ATLASSIAN_AUTH_TOKEN=${ATLASSIAN_AUTH_TOKEN}
@@ -27,41 +24,12 @@ services:
       - /opt/ssl:/etc/ssl
       - /var/log/mcp-gateway:/app/logs
       - /opt/mcp-gateway/auth_server/scopes.yml:/app/auth_server/scopes.yml
-    depends_on:
-      - auth-server
+
     restart: unless-stopped
 
-  # Auth service (separate and scalable)
-  auth-server:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.auth
-    environment:
-      - REGISTRY_URL=${REGISTRY_URL}
-      - SECRET_KEY=${SECRET_KEY}
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-    ports:
-      - "8888:8888"
-    volumes:
-      - /var/log/mcp-gateway:/app/logs
-      - /opt/mcp-gateway/auth_server/scopes.yml:/app/scopes.yml
-    restart: unless-stopped
 
-  # Current Time MCP Server
-  currenttime-server:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.mcp-server
-      args:
-        SERVER_PATH: servers/currenttime
-    environment:
-      - PORT=8000
-      - MCP_TRANSPORT=streamable-http
-    ports:
-      - "8000:8000"
-    restart: unless-stopped
+
+
 
   # Financial Info MCP Server
   fininfo-server:
@@ -101,18 +69,7 @@ services:
       - registry
     restart: unless-stopped
 
-  # Demo Tools MCP Server
-  demo-tools-server:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.mcp-server
-      args:
-        SERVER_PATH: servers/demo-tools
-    environment:
-      - PORT=8002
-    ports:
-      - "8002:8002"
-    restart: unless-stopped
+
 
   # Atlassian MCP Server
   atlassian-server:

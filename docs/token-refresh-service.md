@@ -442,5 +442,5 @@ For issues with the token refresh service:
 
 1. Check the [Troubleshooting Guide](FAQ.md)
 2. Enable debug logging to gather detailed information
-3. Search existing [GitHub Issues](https://github.com/agentic-community/mcp-gateway-registry/issues)
+3. Search existing [GitHub Issues](https://github.com/nice-tits/mcp-gateway-registry/issues)
 4. Create a new issue with logs and configuration details

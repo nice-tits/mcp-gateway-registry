@@ -21,7 +21,7 @@ By the end of this guide, you'll have:
 
 ```bash
 # Clone the repository
-git clone https://github.com/agentic-community/mcp-gateway-registry.git
+git clone https://github.com/nice-tits/mcp-gateway-registry.git
 cd mcp-gateway-registry
 
 # Copy and edit environment configuration (optional)
@@ -320,8 +320,8 @@ curl -H "Authorization: Bearer mcp-api-key-example-12345abcdef" \
 ## Getting Help
 
 - 📖 **[Full Documentation](/)** - Comprehensive guides and references
-- 🐛 **[GitHub Issues](https://github.com/agentic-community/mcp-gateway-registry/issues)** - Bug reports and feature requests
-- 💬 **[GitHub Discussions](https://github.com/agentic-community/mcp-gateway-registry/discussions)** - Community support and questions
+- 🐛 **[GitHub Issues](https://github.com/nice-tits/mcp-gateway-registry/issues)** - Bug reports and feature requests
+- 💬 **[GitHub Discussions](https://github.com/nice-tits/mcp-gateway-registry/discussions)** - Community support and questions
 - 📧 **[Troubleshooting Guide](troubleshooting.md)** - Common issues and detailed solutions
 
 ---

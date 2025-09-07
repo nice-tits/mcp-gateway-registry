@@ -1,22 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
 import logo from '../assets/logo.png';
 import { EyeIcon, EyeSlashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-
-interface OAuthProvider {
-  name: string;
-  display_name: string;
-  icon?: string;
-}
 
 const Login: React.FC = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{username?: string, password?: string}>({});
-  const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -25,9 +17,7 @@ const Login: React.FC = () => {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    fetchOAuthProviders();
-    
-    // Check for error parameter from URL (e.g., from OAuth callback)
+    // Check for error parameter from URL
     const urlError = searchParams.get('error');
     if (urlError) {
       setError(decodeURIComponent(urlError));
@@ -41,17 +31,6 @@ const Login: React.FC = () => {
       setCredentials(prev => ({ ...prev, username: savedUsername }));
     }
   }, [searchParams]);
-
-  const fetchOAuthProviders = async () => {
-    try {
-      // Call the registry auth providers endpoint
-      const response = await axios.get('/api/auth/providers');
-      setOauthProviders(response.data.providers || []);
-    } catch (error) {
-      console.error('Failed to fetch OAuth providers:', error);
-      // Don't show error for missing OAuth providers, just continue with basic auth
-    }
-  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     setCapsLockOn(e.getModifierState('CapsLock'));
@@ -138,18 +117,6 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleOAuthLogin = (provider: string) => {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const currentOrigin = window.location.origin;
-    const redirectUri = encodeURIComponent(currentOrigin + '/');
-    
-    if (isLocalhost) {
-      window.location.href = `http://localhost:8888/oauth2/login/${provider}?redirect_uri=${redirectUri}`;
-    } else {
-      window.location.href = `/oauth2/login/${provider}?redirect_uri=${redirectUri}`;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -173,33 +140,7 @@ const Login: React.FC = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="card p-8">
-          {/* OAuth Providers */}
-          {oauthProviders.length > 0 && (
-            <div className="space-y-3 mb-6">
-              {oauthProviders.map((provider) => (
-                <button
-                  key={provider.name}
-                  onClick={() => handleOAuthLogin(provider.name)}
-                  className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200 hover:shadow-md"
-                >
-                  <span>Continue with {provider.display_name}</span>
-                </button>
-              ))}
-              
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300 dark:border-gray-600" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
-                    Or continue with username
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Traditional Login Form */}
+          {/* Admin Login Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 flex items-start space-x-2">
@@ -222,7 +163,7 @@ const Login: React.FC = () => {
                 onChange={(e) => handleInputChange('username', e.target.value)}
                 onBlur={(e) => handleInputBlur('username', e.target.value)}
                 onKeyDown={handleKeyPress}
-                placeholder="Enter your username"
+                placeholder="Enter admin username"
               />
               {fieldErrors.username && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{fieldErrors.username}</p>
@@ -244,7 +185,7 @@ const Login: React.FC = () => {
                   onChange={(e) => handleInputChange('password', e.target.value)}
                   onBlur={(e) => handleInputBlur('password', e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="Enter your password"
+                  placeholder="Enter admin password"
                 />
                 <button
                   type="button"
