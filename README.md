@@ -320,7 +320,7 @@ make dev-test           # Dev workflow: clean + test
 
 **That's it!** Choose your path:
 - **Just want to try it?** → Use the Docker deployment above
-- **Want to develop/contribute?** → Use the development setup
+- **Want to develop/contribute?** → See [Development Guide](DEVELOPMENT.md)
 - **Need production deployment?** → See [Installation Guide](docs/installation.md)
 
 ➡️ **Next Steps:** [Complete Installation Guide](docs/installation.md) | [Authentication Setup](docs/auth.md) | [AI Assistant Integration](docs/ai-coding-assistants-setup.md)
